@@ -2,20 +2,25 @@
 # vi: set ft=ruby :
 
 # Nodes:
-#  controller-01    192.168.100.10
+#  deploy			192.168.100.5
+#  controller-01    192.168.100.6
 #  compute-01       192.168.100.13
+#  storage-01		192.168.100.50
 #  openstack-client 192.168.100.99
 
 # Interfaces
-# eth0 - nat (used by VMware/VirtualBox)
-# eth1 - br-mgmt (Container) 172.29.236.0/24
-# eth2 - br-vlan (Neutron VLAN network) 0.0.0.0/0
-# eth3 - host / API 192.168.100.0/24
-# eth4 - br-vxlan (Neutron VXLAN Tunnel network) 172.29.240.0/24
 
+# eth0 - nat (used by VMware/VirtualBox)
+# eth1 - br-mgmt (Container) 172.29.236.0/22
+# eth2 - br-vlan (Neutron VLAN network) 172.29.240.0/22
+# eth3 - br-storage 172.29.244.0/22
+# eth4 - br-ex 10.10.0.0/22
+# nodes.each do |prefix, (count, ip_start)|
 nodes = {
+    'deploy'  => [1, 5],
+    'controller' => [1, 6],
     'compute'  => [1, 13],
-    'controller' => [1, 10],
+    'storage'  => [1, 50],
     'openstack-client' => [1,99]
 }
 
@@ -30,8 +35,9 @@ Vagrant.configure("2") do |config|
   end
 
   # Defaults (VirtualBox)
-  #config.vm.box = "velocity42/xenial64"
-  config.vm.box = "bento/ubuntu-18.04"
+  config.vm.box = "bento/centos-7.8"
+  #  config.vm.box = "bento/ubuntu-18.04"
+  # [vagrant] 공유폴더 (Synced Folders) 만들기
   config.vm.synced_folder ".", "/vagrant", type: "nfs"
 
   if config.vm.provider :vmware_workstation
@@ -57,7 +63,8 @@ Vagrant.configure("2") do |config|
 
   # VMware Fusion / Workstation
   config.vm.provider :vmware_fusion or config.vm.provider :vmware_workstation do |vmware, override|
-    override.vm.box = "velocity42/xenial64"
+    override.vm.box = "bento/centos-7.8"
+#   override.vm.box = "velocity42/xenial64"
     override.vm.synced_folder ".", "/vagrant", type: "nfs"
 
     # Fusion Performance Hacks
@@ -83,7 +90,7 @@ Vagrant.configure("2") do |config|
 
   nodes.each do |prefix, (count, ip_start)|
     count.times do |i|
-      if prefix == "compute" or prefix == "controller"
+      if prefix == "compute" or prefix == "controller" or prefix=="storage"
         hostname = "%s-%02d" % [prefix, (i+1)]
       else
         hostname = "%s" % [prefix, (i+1)]
@@ -93,20 +100,29 @@ Vagrant.configure("2") do |config|
 
       config.vm.define "#{hostname}" do |box|
         box.vm.hostname = "#{hostname}.cook.book"
-        box.vm.network :private_network, ip: "172.29.236.#{ip_start+i}", :netmask => "255.255.255.0"
-        box.vm.network :private_network, ip: "10.10.0.#{ip_start+i}", :netmask => "255.255.255.0"
-      	box.vm.network :private_network, ip: "192.168.100.#{ip_start+i}", :netmask => "255.255.255.0"
-      	box.vm.network :private_network, ip: "172.29.240.#{ip_start+i}", :netmask => "255.255.255.0"
-
-	      box.vm.provision :shell, :path => "hosts.sh"
+		# eth1
+      	box.vm.network :private_network, ip: "192.168.100.#{ip_start+i}", :netmask => "255.255.252.0"
+		# eth2
+        box.vm.network :private_network, ip: "172.29.236.#{ip_start+i}", :netmask => "255.255.252.0"
+		# eth3
+        box.vm.network :private_network, ip: "172.29.240.#{ip_start+i}", :netmask => "255.255.252.0"
+		# eth4
+        box.vm.network :private_network, ip: "172.29.244.#{ip_start+i}", :netmask => "255.255.252.0"
+		# eth5
+        box.vm.network :private_network, ip: "10.10.0.#{ip_start+i}", :netmask => "255.255.252.0"
+        box.vm.provision :shell, :path => "hosts.sh"
+#            box.vm.provision :shell, :path => "hosts.sh"
 
         # Order is important - this is the last "prefix" (vm) to load up, so execute last
-        if hostname == "openstack-client"
+	    # by hycho 2020.07
+        if hostname == "deploy"
 
-        	box.vm.provision :shell, :path => "hosts.sh"
+       	  box.vm.provision :shell, :path => "hosts.sh"
+       	  box.vm.provision :shell, :path => "shell-hycho.sh"
+       	  box.vm.provision :shell, :path => "deploy-node.sh"
+       	  box.vm.provision :shell, :path => "network-hycho.sh"
 
-          box.vm.provision :shell, :path => "scripts/install-ansible.sh"
-
+          # add ssh user:vagrant pass:vagrant
           box.vm.provision :ansible_local do |ansible|
             ansible.install = false
             ansible.provisioning_path = "/vagrant"
@@ -118,22 +134,61 @@ Vagrant.configure("2") do |config|
             ansible.become = false
           end
 
+          # add ssh user:root pass:root
           box.vm.provision :ansible_local do |ansible|
             ansible.install = false
+            ansible.provisioning_path = "/vagrant"
             # Disable default limit to connect to all the machines
-            ansible.compatibility_mode = "2.0"
             ansible.limit = "all"
-            ansible.playbook = "install-openstack.yml"
-            ansible.extra_vars = { ansible_ssh_user: 'vagrant' }
+            ansible.playbook = "playbooks/deploy-ssh-keys.yml"
             ansible.inventory_path = "playbooks/hosts.ini"
-            ansible.become = true
+            ansible.extra_vars = { ansible_user: "root", ansible_ssh_pass: "root" }
+            ansible.become = false
           end
+        end
 
-          box.vm.provision :shell, :path => "fetch-openrc-from-utility.sh"
+        if hostname == "storage"
+          box.vm.provision :shell, :path => "storage-node.sh"
+        end
 
-          box.vm.provision :shell, :path => "openstack-client.sh"
+        if hostname == "openstack-client"
+
+	  # by hycho 2020.07
+          box.vm.provision :shell, :path => "deploy-node.sh"
+
+          box.vm.provision :shell, :path => "scripts/install-ansible.sh"
+
+          # add ssh user:vagrant pass:vagrant
+          box.vm.provision :ansible_local do |ansible|
+            ansible.install = false
+            ansible.provisioning_path = "/vagrant"
+            # Disable default limit to connect to all the machines
+            ansible.limit = "all"
+            ansible.playbook = "playbooks/deploy-ssh-keys.yml"
+            ansible.inventory_path = "playbooks/hosts.ini"
+            ansible.extra_vars = { ansible_user: "vagrant", ansible_ssh_pass: "vagrant" }
+            ansible.become = false
+          end
+          #
+          #box.vm.provision :ansible_local do |ansible|
+          #  ansible.install = false
+            # Disable default limit to connect to all the machines
+          #  ansible.compatibility_mode = "2.0"
+          #  ansible.limit = "all"
+          #  ansible.playbook = "install-openstack.yml"
+          #  ansible.extra_vars = { ansible_ssh_user: 'vagrant' }
+          #  ansible.inventory_path = "playbooks/hosts.ini"
+          #  ansible.become = true
+          #end
+
+          #box.vm.provision :shell, :path => "fetch-openrc-from-utility.sh"
+
+          #box.vm.provision :shell, :path => "openstack-client.sh"
 
         end
+		# add target-node 
+		# by hycho 2020.07
+        box.vm.provision :shell, :path => "target-node.sh"
 
         # If using VMware Fusion
         box.vm.provider "vmware_fusion" do |v|
@@ -180,6 +235,15 @@ Vagrant.configure("2") do |config|
             vbox.customize ["modifyvm", :id, "--memory", 4096]
             vbox.customize ["modifyvm", :id, "--cpus", 1]
           end
+          if prefix == "storage"
+            vbox.customize ["modifyvm", :id, "--memory", 4096]
+            vbox.customize ["modifyvm", :id, "--cpus", 1]
+		    file_to_disk = './tmp/SecondDisk.vdi'
+			  unless File.exist?(file_to_disk)
+                vbox.customize ['createhd', '--filename', file_to_disk, '--size', 500 * 1024]
+				vbox.customize ['storageattach', :id, '--storagectl', 'SATA Controller', '--port', 1, '--device', 0, '--type', 'hdd', '--medium', file_to_disk]
+              end
+		  end
           vbox.customize ["modifyvm", :id, "--nicpromisc1", "allow-all"]
           vbox.customize ["modifyvm", :id, "--nicpromisc2", "allow-all"]
           vbox.customize ["modifyvm", :id, "--nicpromisc3", "allow-all"]

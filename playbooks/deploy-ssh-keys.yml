@@ -1,6 +1,7 @@
 ---
 - name: Generate SSH keys used under deployment process
-  hosts: openstack-client
+#  hosts: openstack-client
+  hosts: all 
   gather_facts: no
   become: yes
 

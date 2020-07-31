@@ -1,10 +1,11 @@
 #!/bin/bash
 
+echo "##################### hosts.sh #########"
+cp -i /etc/sysconfig/network-scripts/ /etc/sysconfig/network-scripts/backup/
+yum install bridge-utils vim traceroute -y
+. /vagrant/shell-hycho.sh
+
 echo "
-192.168.100.9 logging-01
-192.168.100.10 controller-01 	
-192.168.100.11 controller-02
-192.168.100.12 controller-03
-192.168.100.13 compute-01
-192.168.100.14 compute-02
-192.168.100.99 openstack-client" >> /etc/hosts
+192.168.100.1:/Users/hycho/OpenStack/OS_test2-OS-Ansible/vagrant-openstack /vagrant2		nfs	defaults,_netdev	0 0
+" >>  /etc/fstab
+mount /vagrant

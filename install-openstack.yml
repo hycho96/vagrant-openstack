@@ -31,7 +31,9 @@
     - pip
 
 - name: Run OpenStack Installation
-  hosts: controller-01
+#  hosts: controller-01
+#  by hycho
+  hosts: deploy 
   vars_files:
     - config.yml
   user: vagrant
