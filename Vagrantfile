@@ -119,8 +119,8 @@ Vagrant.configure("2") do |config|
 
        	  box.vm.provision :shell, :path => "hosts.sh"
        	  box.vm.provision :shell, :path => "shell-hycho.sh"
-       	  box.vm.provision :shell, :path => "deploy-node.sh"
        	  box.vm.provision :shell, :path => "network-hycho.sh"
+       	  box.vm.provision :shell, :path => "deploy-node.sh"
 
           # add ssh user:vagrant pass:vagrant
           box.vm.provision :ansible_local do |ansible|

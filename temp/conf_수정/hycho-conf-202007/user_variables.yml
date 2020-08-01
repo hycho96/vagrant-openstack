@@ -1,0 +1,18 @@
+---
+
+debug: True
+ssh_delay: 10
+
+openstack_service_publicuri_proto: http
+openstack_external_ssl: false
+haproxy_ssl: no
+horizon_images_upload_mode: legacy
+
+haproxy_keepalived_external_vip_cidr: "10.10.0.6/24"
+haproxy_keepalived_internal_vip_cidr: "172.29.236.6/24"
+haproxy_keepalived_external_interface: br-ex
+haproxy_keepalived_internal_interface: br-mgmt
+
+neutron_plugin_base:
+  - router
+

@@ -1,0 +1,85 @@
+---
+
+debug: True
+ssh_delay: 10
+
+openstack_service_publicuri_proto: http
+openstack_external_ssl: false
+haproxy_ssl: no
+horizon_images_upload_mode: legacy
+
+
+haproxy_keepalived_external_vip_cidr: "192.168.122.9/24"
+haproxy_keepalived_internal_vip_cidr: "172.29.236.9/22"
+haproxy_keepalived_external_interface: br-ex
+haproxy_keepalived_internal_interface: br-mgmt
+
+haproxy_use_keepalived: True
+keepalived_ping_address: "192.168.122.1"
+
+keepalived_global_defs:
+  - "enable_script_security"
+  - "script_user root root"
+
+neutron_plugin_base:
+  - router
+
+openstack_host_specific_kernel_modules:
+  - name: "openvswitch"
+    pattern: "CONFIG_OPENVSWITCH="
+    group: "network_hosts"
+
+neutron_plugin_type: ml2.ovs.dvr
+neutron_l2_population: true
+neutron_tunnel_types:  vxlan
+
+neutron_provider_networks:
+  network_flat_networks: "*"
+  network_types: "vxlan, flat, vlan"
+  network_vxlan_ranges: "2048:4094"
+  network_vlan_ranges: "provider:121:1720"
+  network_mappings: "provider:br-provider"
+
+cidr_networks:
+  container: 172.29.236.0/22
+  tunnel: 172.29.240.0/22
+  storage: 172.29.244.0/22
+
+generate_fsid: false
+fsid: 116f14c4-7fe1-40e4-94eb-9240b63de5c1
+
+monitor_address_block: "{{ cidr_networks.container  }}"
+public_network: "{{ cidr_networks.container  }}"
+cluster_network: "{{ cidr_networks.storage  }}"
+
+openstack_config: true
+
+cinder_ceph_client: cinder
+glance_ceph_client: glance
+glance_default_store: rbd
+glance_rbd_store_pool: images
+
+cinder_default_volume_type: RBD
+
+cinder_backends:
+  RBD:
+    volume_driver: cinder.volume.drivers.rbd.RBDDriver
+    rbd_pool: volumes
+    rbd_ceph_conf: /etc/ceph/ceph.conf
+    rbd_store_chunk_size: 8
+    volume_backend_name: rbddriver
+    rbd_user: "{{ cinder_ceph_client  }}"
+    rbd_secret_uuid: "{{ cinder_ceph_client_uuid  }}"
+    report_discard_supported: true
+
+
+octavia_event_streamer: False
+octavia_ip_tables_fw: False
+octavia_service_password: "secrete"
+octavia_container_mysql_password: "secrete"
+octavia_swift_temp_url_secret_key: secrete
+octavia_health_hmac_key: secrete
+octavia_management_net_subnet_allocation_pools: "172.29.232.10-172.29.235.200"
+octavia_sync_provisioning_status: False
+octavia_hm_hosts: 192.168.122.11
+octavia_health_manager_port: 5555

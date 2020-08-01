@@ -9,3 +9,7 @@ echo "
 192.168.100.1:/Users/hycho/OpenStack/OS_test2-OS-Ansible/vagrant-openstack /vagrant2		nfs	defaults,_netdev	0 0
 " >>  /etc/fstab
 mount /vagrant
+yum -y upgrade
+sync
+sync
+reboot
